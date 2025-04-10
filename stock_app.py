@@ -1,4 +1,41 @@
 import streamlit as st
+import requests
+from datetime import datetime
+import matplotlib.pyplot as plt
+
+# CNN Fear & Greed Index 데이터를 가져오는 함수
+def get_fear_greed_index():
+    try:
+        url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata/"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        latest = data['fear_and_greed_historical']['data'][-1]
+        index_value = latest['y']
+        timestamp = latest['x'] / 1000
+        return index_value, datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S'), data
+    except Exception as e:
+        return None, None, None
+
+# 상단부에 CNN Fear & Greed Index를 고정적으로 표기
+fg_index, fg_date, fg_data = get_fear_greed_index()
+if fg_index is not None:
+    st.markdown(f"### CNN Fear & Greed Index: **{fg_index}** (Last Updated: {fg_date})")
+    # 그래픽 (추세선) 표시
+    dates = [datetime.fromtimestamp(point['x'] / 1000) for point in fg_data['fear_and_greed_historical']['data']]
+    values = [point['y'] for point in fg_data['fear_and_greed_historical']['data']]
+    
+    fig_fg, ax_fg = plt.subplots(figsize=(10, 3))
+    ax_fg.plot(dates, values, color='blue', label='Fear & Greed Index')
+    ax_fg.set_xlabel("Date")
+    ax_fg.set_ylabel("Index Value")
+    ax_fg.set_title("CNN Fear & Greed Index Trend")
+    ax_fg.legend()
+    ax_fg.grid(True)
+    st.pyplot(fig_fg)
+else:
+    st.error("CNN Fear & Greed Index 데이터를 가져올 수 없습니다.")
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -64,7 +101,7 @@ for i, ticker in enumerate(st.session_state.tickers):
     # 티커 선택 버튼
     if st.sidebar.button(f"{ticker}", key=f"sel_{ticker}"):
         st.session_state.selected = ticker
-    # 수정 모드일 때만 추가 버튼들 노출
+    # 수정 모드일 때만 추가 버튼 노출
     if st.session_state.edit_mode:
         html = f"""
         <div style="display: flex; gap: 5px; margin: 0.2em 0;">
@@ -124,22 +161,28 @@ if selected:
         info = stock.info
         hist = stock.history(period="1y")
         ath = stock.history(period="10y")["High"].max()
+        low_6mo = stock.history(period="6mo")["Low"].min() if not hist.empty else None
 
         current_price = info.get("regularMarketPrice")
         high_52w = hist["High"].max() if not hist.empty else None
         low_52w = hist["Low"].min() if not hist.empty else None
+        prev_close = info.get("previousClose")
 
         st.title(f"📈 {selected} 분석 결과")
         st.write(f"- 현재가: **{format_price(current_price)}**")
+        st.write(f"- 전일 종가: **{format_price(prev_close)}**")
+        st.write(f"📊 전일 대비 변화율: {percent_change(current_price, prev_close)}")
         st.write(f"- 연중 최고가: **{format_price(high_52w)}**")
         st.write(f"- 연중 최저가: **{format_price(low_52w)}**")
+        st.write(f"- 6개월 최저가: **{format_price(low_6mo)}**")
+        st.write(f"📈 6개월 최저가 대비 상승률: {percent_change(current_price, low_6mo)}")
         st.write(f"- 사상 최고가 (10년): **{format_price(ath)}**")
         st.write(f"📉 사상 최고가 대비 하락률: {percent_change(current_price, ath)}")
         st.write(f"📉 연중 최고가 대비 하락률: {percent_change(current_price, high_52w)}")
         st.write(f"📈 연중 최저가 대비 상승률: {percent_change(current_price, low_52w)}")
 
         st.markdown("#### 📉 최고점 대비 하락 구간 (5% 단위)")
-        drop_levels = [i/100 for i in range(0, 85, 5)]  # 0.0, 0.05, ..., 0.80
+        drop_levels = [i/100 for i in range(0, 85, 5)]
         levels = {f"{int(level*100)}% 하락": round(ath * (1 - level), 2) for level in drop_levels}
         df_levels = pd.DataFrame.from_dict(levels, orient='index', columns=['가격'])
         df_levels['가격'] = df_levels['가격'].map(lambda x: f"${x:.2f}")
@@ -147,12 +190,9 @@ if selected:
 
         st.markdown("#### 🎯 현재 주가의 위치")
         fall_points = [ath * (1 - level) for level in drop_levels]
-        # 수정: 화살표(↓) 제거 후 단순 "XX%" 형식으로 표시
         labels = [f"{int(level*100)}%" for level in drop_levels]
 
-        # 현재 드롭 비율 계산
         current_drop = 1 - (current_price / ath) if ath and current_price else 0
-
         highlight_index = 0
         for idx in range(len(drop_levels) - 1):
             if drop_levels[idx] <= current_drop < drop_levels[idx+1]:
@@ -161,12 +201,7 @@ if selected:
         if current_drop >= drop_levels[-1]:
             highlight_index = len(drop_levels) - 1
 
-        colors = []
-        for idx, price in enumerate(fall_points):
-            if idx == highlight_index:
-                colors.append("green")
-            else:
-                colors.append("lightgray")
+        colors = ["green" if idx == highlight_index else "lightgray" for idx in range(len(fall_points))]
 
         fig, ax = plt.subplots(figsize=(8, 1.5))
         bars = ax.bar(labels, fall_points, color=colors, edgecolor='black')
