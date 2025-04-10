@@ -5,20 +5,34 @@ import matplotlib.pyplot as plt
 import gspread
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 
-# ✅ 구글 시트 설정
+# ✅ 비밀번호 설정
+PASSWORD = "jelso0428"
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 로그인 필요")
+    password = st.text_input("비밀번호를 입력하세요", type="password")
+    if st.button("로그인"):
+        if password == PASSWORD:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("비밀번호가 틀렸습니다.")
+    st.stop()
+
+# ✅ Google Sheets 연동
 SHEET_NAME = "stock_tickers"
 gc = gspread.service_account_from_dict(st.secrets["gspread"])
 sh = gc.open(SHEET_NAME)
 worksheet = sh.sheet1
 
-# ✅ 시트 불러오기 함수
 def load_tickers():
     df = get_as_dataframe(worksheet, header=None)
     if df.empty:
         return []
     return df.iloc[:, 0].dropna().tolist()
 
-# ✅ 시트 저장 함수
 def save_tickers(tickers):
     df = pd.DataFrame(tickers)
     worksheet.clear()
