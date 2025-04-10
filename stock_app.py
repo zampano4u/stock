@@ -43,8 +43,10 @@ if "tickers" not in st.session_state:
     st.session_state.tickers = load_tickers()
 if "selected" not in st.session_state:
     st.session_state.selected = st.session_state.tickers[0] if st.session_state.tickers else None
+if "edit_mode" not in st.session_state:
+    st.session_state.edit_mode = False
 
-# ✅ 종목 관리 UI
+# ✅ 사이드바 – 종목 관리 및 수정 모드 토글
 st.sidebar.title("📌 종목 관리")
 new_ticker = st.sidebar.text_input("추가할 티커 입력 (예: AAPL)")
 if st.sidebar.button("추가"):
@@ -53,43 +55,46 @@ if st.sidebar.button("추가"):
         st.session_state.tickers.append(ticker)
         save_tickers(st.session_state.tickers)
 
+# 수정 모드 토글 버튼
+if st.sidebar.button("수정"):
+    st.session_state.edit_mode = not st.session_state.edit_mode
+
 st.sidebar.markdown("### 🔍 종목 목록")
 for i, ticker in enumerate(st.session_state.tickers):
+    # 티커 선택 버튼
     if st.sidebar.button(f"{ticker}", key=f"sel_{ticker}"):
         st.session_state.selected = ticker
-    html = f"""
-    <div style="display:flex; gap:5px; margin: 0.2em 0;">
-        <form method="get">
-            <button name="action" value="up_{i}" style="padding:2px 6px;">⬆️</button>
-        </form>
-        <form method="get">
-            <button name="action" value="down_{i}" style="padding:2px 6px;">⬇️</button>
-        </form>
-        <form method="get">
-            <button name="action" value="del_{ticker}" style="padding:2px 6px;">❌</button>
-        </form>
-    </div>
-    """
-    st.sidebar.markdown(html, unsafe_allow_html=True)
-# ✅ 최신 방식: query_params 기반 처리
+    # 수정 모드일 때만 추가 버튼들 노출
+    if st.session_state.edit_mode:
+        html = f"""
+        <div style="display: flex; gap: 5px; margin: 0.2em 0;">
+            <form method="get">
+                <button name="action" value="up_{i}" style="padding:2px 6px;">⬆️</button>
+            </form>
+            <form method="get">
+                <button name="action" value="down_{i}" style="padding:2px 6px;">⬇️</button>
+            </form>
+            <form method="get">
+                <button name="action" value="del_{ticker}" style="padding:2px 6px;">❌</button>
+            </form>
+        </div>
+        """
+        st.sidebar.markdown(html, unsafe_allow_html=True)
+# ✅ 액션 처리 (최신 Streamlit API)
 params = st.query_params
-action = params.get("action", None)
-
+action = params.get("action", [None])[0]
 if action:
-    if isinstance(action, list):
-        action = action[0]  # 리스트로 오는 경우도 있으므로 방어적 처리
-
     if action.startswith("up_"):
         i = int(action.split("_")[1])
         if i > 0:
-            st.session_state.tickers[i], st.session_state.tickers[i - 1] = st.session_state.tickers[i - 1], st.session_state.tickers[i]
+            st.session_state.tickers[i], st.session_state.tickers[i-1] = st.session_state.tickers[i-1], st.session_state.tickers[i]
             save_tickers(st.session_state.tickers)
             st.query_params.clear()
             st.rerun()
     elif action.startswith("down_"):
         i = int(action.split("_")[1])
-        if i < len(st.session_state.tickers) - 1:
-            st.session_state.tickers[i], st.session_state.tickers[i + 1] = st.session_state.tickers[i + 1], st.session_state.tickers[i]
+        if i < len(st.session_state.tickers)-1:
+            st.session_state.tickers[i], st.session_state.tickers[i+1] = st.session_state.tickers[i+1], st.session_state.tickers[i]
             save_tickers(st.session_state.tickers)
             st.query_params.clear()
             st.rerun()
@@ -133,27 +138,51 @@ if selected:
         st.write(f"📉 연중 최고가 대비 하락률: {percent_change(current_price, high_52w)}")
         st.write(f"📈 연중 최저가 대비 상승률: {percent_change(current_price, low_52w)}")
 
-        st.markdown("#### 📉 최고점 대비 하락 구간")
-        levels = {f"{int(p*100)}% 하락": round(ath * (1 - p), 2) for p in [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]}
+        # 5% 단위 하락 구간 분석 (예: 0%, 5%, 10%, ... 80%)
+        st.markdown("#### 📉 최고점 대비 하락 구간 (5% 단위)")
+        drop_levels = [i/100 for i in range(0, 85, 5)]  # 0.0, 0.05, ..., 0.80
+        levels = {f"{int(level*100)}% 하락": round(ath * (1 - level), 2) for level in drop_levels}
         df_levels = pd.DataFrame.from_dict(levels, orient='index', columns=['가격'])
         df_levels['가격'] = df_levels['가격'].map(lambda x: f"${x:.2f}")
         st.dataframe(df_levels)
 
+        # 현재 주가가 어느 구간에 해당하는지 표시하기 위해 단일 구간만 강조
         st.markdown("#### 🎯 현재 주가의 위치")
-        fall_points = [ath * (1 - p) for p in [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]]
-        labels = [f"{int(p*100)}%↓" for p in [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]]
-        colors = ["green" if current_price >= price else "lightgray" for price in fall_points]
+        fall_points = [ath * (1 - level) for level in drop_levels]
+        labels = [f"{int(level*100)}%↓" for level in drop_levels]
+
+        # 현재 드롭 비율 계산 (예: ath=100, current=85 → drop=15%)
+        current_drop = 1 - (current_price / ath) if ath and current_price else 0
+
+        # 해당하는 구간만 강조(단, 구간은 drop_levels[i] ≤ current_drop < drop_levels[i+1])
+        highlight_index = 0
+        for idx in range(len(drop_levels) - 1):
+            if drop_levels[idx] <= current_drop < drop_levels[idx+1]:
+                highlight_index = idx
+                break
+        if current_drop >= drop_levels[-1]:
+            highlight_index = len(drop_levels) - 1
+
+        colors = []
+        for idx, price in enumerate(fall_points):
+            if idx == highlight_index:
+                colors.append("green")
+            else:
+                colors.append("lightgray")
 
         fig, ax = plt.subplots(figsize=(8, 1.5))
         bars = ax.bar(labels, fall_points, color=colors, edgecolor='black')
         for bar in bars:
             height = bar.get_height()
-            ax.annotate(f"${height:.2f}", xy=(bar.get_x() + bar.get_width()/2, height),
-                        xytext=(0, 3), textcoords="offset points", ha='center', fontsize=8)
+            ax.annotate(f"${height:.2f}",
+                        xy=(bar.get_x() + bar.get_width()/2, height),
+                        xytext=(0, 3), textcoords="offset points",
+                        ha='center', fontsize=8)
         ax.set_ylabel("가격 ($)")
         ax.set_title(f"{selected} 현재가 위치", fontsize=10)
         st.pyplot(fig)
 
+        # 최근 1년 종가 추세
         st.markdown("#### 📈 최근 1년간 종가 추세")
         fig2, ax2 = plt.subplots(figsize=(10, 3))
         ax2.plot(hist.index, hist['Close'], color='blue', label='종가', linewidth=1.5)
