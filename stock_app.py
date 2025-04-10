@@ -55,20 +55,21 @@ if st.sidebar.button("추가"):
 
 st.sidebar.markdown("### 🔍 종목 목록")
 for i, ticker in enumerate(st.session_state.tickers):
-    cols = st.sidebar.columns([4, 1, 1, 1])
-    if cols[0].button(ticker, key=f"sel_{ticker}"):
-        st.session_state.selected = ticker
-    if cols[1].button("🔼", key=f"up_{i}") and i > 0:
-        st.session_state.tickers[i], st.session_state.tickers[i-1] = st.session_state.tickers[i-1], st.session_state.tickers[i]
-        save_tickers(st.session_state.tickers)
-    if cols[2].button("🔽", key=f"down_{i}") and i < len(st.session_state.tickers)-1:
-        st.session_state.tickers[i], st.session_state.tickers[i+1] = st.session_state.tickers[i+1], st.session_state.tickers[i]
-        save_tickers(st.session_state.tickers)
-    if cols[3].button("❌", key=f"del_{ticker}"):
-        st.session_state.tickers.remove(ticker)
-        save_tickers(st.session_state.tickers)
-        if st.session_state.selected == ticker:
-            st.session_state.selected = st.session_state.tickers[0] if st.session_state.tickers else None
+    with st.sidebar.container():
+        col = st.columns([6, 1, 1, 1])
+        if col[0].button(f"{ticker}", key=f"sel_{ticker}"):
+            st.session_state.selected = ticker
+        if col[1].button("⬆️", key=f"up_{i}") and i > 0:
+            st.session_state.tickers[i], st.session_state.tickers[i-1] = st.session_state.tickers[i-1], st.session_state.tickers[i]
+            save_tickers(st.session_state.tickers)
+        if col[2].button("⬇️", key=f"down_{i}") and i < len(st.session_state.tickers)-1:
+            st.session_state.tickers[i], st.session_state.tickers[i+1] = st.session_state.tickers[i+1], st.session_state.tickers[i]
+            save_tickers(st.session_state.tickers)
+        if col[3].button("❌", key=f"del_{ticker}"):
+            st.session_state.tickers.remove(ticker)
+            save_tickers(st.session_state.tickers)
+            if st.session_state.selected == ticker:
+                st.session_state.selected = st.session_state.tickers[0] if st.session_state.tickers else None
 
 # ✅ 분석 함수들
 def percent_change(current, reference):
