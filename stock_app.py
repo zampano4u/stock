@@ -7,19 +7,18 @@ from gspread_dataframe import get_as_dataframe, set_with_dataframe
 
 # ✅ 구글 시트 설정
 SHEET_NAME = "stock_tickers"
-
-# 구글 시트 불러오기
 gc = gspread.service_account_from_dict(st.secrets["gspread"])
 sh = gc.open(SHEET_NAME)
 worksheet = sh.sheet1
 
-# 현재 시트에서 티커 불러오기
+# ✅ 시트 불러오기 함수
 def load_tickers():
     df = get_as_dataframe(worksheet, header=None)
-    tickers = df[0].dropna().tolist()
-    return tickers
+    if df.empty:
+        return []
+    return df.iloc[:, 0].dropna().tolist()
 
-# 시트에 티커 저장
+# ✅ 시트 저장 함수
 def save_tickers(tickers):
     df = pd.DataFrame(tickers)
     worksheet.clear()
@@ -31,10 +30,8 @@ if "tickers" not in st.session_state:
 if "selected" not in st.session_state:
     st.session_state.selected = st.session_state.tickers[0] if st.session_state.tickers else None
 
-# ✅ 사이드바 UI
+# ✅ 종목 관리 UI
 st.sidebar.title("📌 종목 관리")
-
-# 티커 추가
 new_ticker = st.sidebar.text_input("추가할 티커 입력 (예: AAPL)")
 if st.sidebar.button("추가"):
     ticker = new_ticker.upper()
@@ -42,7 +39,6 @@ if st.sidebar.button("추가"):
         st.session_state.tickers.append(ticker)
         save_tickers(st.session_state.tickers)
 
-# 티커 목록 출력 및 선택
 st.sidebar.markdown("### 🔍 종목 목록")
 for i, ticker in enumerate(st.session_state.tickers):
     cols = st.sidebar.columns([4, 1, 1, 1])
@@ -60,6 +56,15 @@ for i, ticker in enumerate(st.session_state.tickers):
         if st.session_state.selected == ticker:
             st.session_state.selected = st.session_state.tickers[0] if st.session_state.tickers else None
 
+# ✅ 분석 함수들
+def percent_change(current, reference):
+    if not current or not reference or reference == 0:
+        return "N/A"
+    return f"{round(((current - reference) / reference) * 100, 2)}%"
+
+def format_price(value):
+    return f"${value:.2f}" if value is not None else "N/A"
+
 # ✅ 선택된 종목 분석
 selected = st.session_state.selected
 if selected:
@@ -67,25 +72,17 @@ if selected:
         stock = yf.Ticker(selected)
         info = stock.info
         hist = stock.history(period="1y")
+        ath = stock.history(period="10y")["High"].max()
 
         current_price = info.get("regularMarketPrice")
         high_52w = hist["High"].max() if not hist.empty else None
         low_52w = hist["Low"].min() if not hist.empty else None
-        ath = stock.history(period="10y")["High"].max()
-
-        def percent_change(current, reference):
-            if not current or not reference or reference == 0:
-                return "N/A"
-            return f"{round(((current - reference) / reference) * 100, 2)}%"
-
-        def format_price(value):
-            return f"${value:.2f}" if value is not None else "N/A"
 
         st.title(f"📈 {selected} 분석 결과")
         st.write(f"- 현재가: **{format_price(current_price)}**")
         st.write(f"- 연중 최고가: **{format_price(high_52w)}**")
         st.write(f"- 연중 최저가: **{format_price(low_52w)}**")
-        st.write(f"- 사상 최고가 (10Y): **{format_price(ath)}**")
+        st.write(f"- 사상 최고가 (10년): **{format_price(ath)}**")
         st.write(f"📉 사상 최고가 대비 하락률: {percent_change(current_price, ath)}")
         st.write(f"📉 연중 최고가 대비 하락률: {percent_change(current_price, high_52w)}")
         st.write(f"📈 연중 최저가 대비 상승률: {percent_change(current_price, low_52w)}")
@@ -113,7 +110,7 @@ if selected:
         ax.set_title(f"{selected} 현재가 위치", fontsize=10)
         st.pyplot(fig)
 
-        # 주가 추세
+        # 주가 추세선
         st.markdown("#### 📈 최근 1년간 종가 추세")
         fig2, ax2 = plt.subplots(figsize=(10, 3))
         ax2.plot(hist.index, hist['Close'], color='blue', label='종가', linewidth=1.5)
