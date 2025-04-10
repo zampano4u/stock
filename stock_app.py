@@ -138,7 +138,6 @@ if selected:
         st.write(f"📉 연중 최고가 대비 하락률: {percent_change(current_price, high_52w)}")
         st.write(f"📈 연중 최저가 대비 상승률: {percent_change(current_price, low_52w)}")
 
-        # 5% 단위 하락 구간 분석 (예: 0%, 5%, 10%, ... 80%)
         st.markdown("#### 📉 최고점 대비 하락 구간 (5% 단위)")
         drop_levels = [i/100 for i in range(0, 85, 5)]  # 0.0, 0.05, ..., 0.80
         levels = {f"{int(level*100)}% 하락": round(ath * (1 - level), 2) for level in drop_levels}
@@ -146,15 +145,14 @@ if selected:
         df_levels['가격'] = df_levels['가격'].map(lambda x: f"${x:.2f}")
         st.dataframe(df_levels)
 
-        # 현재 주가가 어느 구간에 해당하는지 표시하기 위해 단일 구간만 강조
         st.markdown("#### 🎯 현재 주가의 위치")
         fall_points = [ath * (1 - level) for level in drop_levels]
-        labels = [f"{int(level*100)}%↓" for level in drop_levels]
+        # 수정: 화살표(↓) 제거 후 단순 "XX%" 형식으로 표시
+        labels = [f"{int(level*100)}%" for level in drop_levels]
 
-        # 현재 드롭 비율 계산 (예: ath=100, current=85 → drop=15%)
+        # 현재 드롭 비율 계산
         current_drop = 1 - (current_price / ath) if ath and current_price else 0
 
-        # 해당하는 구간만 강조(단, 구간은 drop_levels[i] ≤ current_drop < drop_levels[i+1])
         highlight_index = 0
         for idx in range(len(drop_levels) - 1):
             if drop_levels[idx] <= current_drop < drop_levels[idx+1]:
@@ -182,7 +180,6 @@ if selected:
         ax.set_title(f"{selected} 현재가 위치", fontsize=10)
         st.pyplot(fig)
 
-        # 최근 1년 종가 추세
         st.markdown("#### 📈 최근 1년간 종가 추세")
         fig2, ax2 = plt.subplots(figsize=(10, 3))
         ax2.plot(hist.index, hist['Close'], color='blue', label='종가', linewidth=1.5)
