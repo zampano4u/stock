@@ -59,27 +59,40 @@ for i, ticker in enumerate(st.session_state.tickers):
         st.session_state.selected = ticker
     html = f"""
     <div style="display:flex; gap:5px; margin: 0.2em 0;">
-        <form method="post"><button name="action" value="up_{i}" style="padding:2px 6px;">⬆️</button></form>
-        <form method="post"><button name="action" value="down_{i}" style="padding:2px 6px;">⬇️</button></form>
-        <form method="post"><button name="action" value="del_{ticker}" style="padding:2px 6px;">❌</button></form>
+        <form method="get">
+            <button name="action" value="up_{i}" style="padding:2px 6px;">⬆️</button>
+        </form>
+        <form method="get">
+            <button name="action" value="down_{i}" style="padding:2px 6px;">⬇️</button>
+        </form>
+        <form method="get">
+            <button name="action" value="del_{ticker}" style="padding:2px 6px;">❌</button>
+        </form>
     </div>
     """
     st.sidebar.markdown(html, unsafe_allow_html=True)
-# ✅ 액션 처리
-action = st.experimental_get_query_params().get("action", [None])[0]
+# ✅ 최신 방식: query_params 기반 처리
+params = st.query_params
+action = params.get("action", None)
+
 if action:
+    if isinstance(action, list):
+        action = action[0]  # 리스트로 오는 경우도 있으므로 방어적 처리
+
     if action.startswith("up_"):
         i = int(action.split("_")[1])
         if i > 0:
-            st.session_state.tickers[i], st.session_state.tickers[i-1] = st.session_state.tickers[i-1], st.session_state.tickers[i]
+            st.session_state.tickers[i], st.session_state.tickers[i - 1] = st.session_state.tickers[i - 1], st.session_state.tickers[i]
             save_tickers(st.session_state.tickers)
-            st.experimental_rerun()
+            st.query_params.clear()
+            st.rerun()
     elif action.startswith("down_"):
         i = int(action.split("_")[1])
-        if i < len(st.session_state.tickers)-1:
-            st.session_state.tickers[i], st.session_state.tickers[i+1] = st.session_state.tickers[i+1], st.session_state.tickers[i]
+        if i < len(st.session_state.tickers) - 1:
+            st.session_state.tickers[i], st.session_state.tickers[i + 1] = st.session_state.tickers[i + 1], st.session_state.tickers[i]
             save_tickers(st.session_state.tickers)
-            st.experimental_rerun()
+            st.query_params.clear()
+            st.rerun()
     elif action.startswith("del_"):
         ticker = action.replace("del_", "")
         if ticker in st.session_state.tickers:
@@ -87,7 +100,8 @@ if action:
             save_tickers(st.session_state.tickers)
             if st.session_state.selected == ticker:
                 st.session_state.selected = st.session_state.tickers[0] if st.session_state.tickers else None
-            st.experimental_rerun()
+            st.query_params.clear()
+            st.rerun()
 
 # ✅ 분석 유틸 함수
 def percent_change(current, reference):
