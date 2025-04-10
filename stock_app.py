@@ -1,41 +1,4 @@
 import streamlit as st
-import requests
-from datetime import datetime
-import matplotlib.pyplot as plt
-
-# CNN Fear & Greed Index 데이터를 가져오는 함수
-def get_fear_greed_index():
-    try:
-        url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata/"
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        latest = data['fear_and_greed_historical']['data'][-1]
-        index_value = latest['y']
-        timestamp = latest['x'] / 1000
-        return index_value, datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S'), data
-    except Exception as e:
-        return None, None, None
-
-# 상단부에 CNN Fear & Greed Index를 고정적으로 표기
-fg_index, fg_date, fg_data = get_fear_greed_index()
-if fg_index is not None:
-    st.markdown(f"### CNN Fear & Greed Index: **{fg_index}** (Last Updated: {fg_date})")
-    # 그래픽 (추세선) 표시
-    dates = [datetime.fromtimestamp(point['x'] / 1000) for point in fg_data['fear_and_greed_historical']['data']]
-    values = [point['y'] for point in fg_data['fear_and_greed_historical']['data']]
-    
-    fig_fg, ax_fg = plt.subplots(figsize=(10, 3))
-    ax_fg.plot(dates, values, color='blue', label='Fear & Greed Index')
-    ax_fg.set_xlabel("Date")
-    ax_fg.set_ylabel("Index Value")
-    ax_fg.set_title("CNN Fear & Greed Index Trend")
-    ax_fg.legend()
-    ax_fg.grid(True)
-    st.pyplot(fig_fg)
-else:
-    st.error("CNN Fear & Greed Index 데이터를 가져올 수 없습니다.")
-import streamlit as st
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -101,7 +64,7 @@ for i, ticker in enumerate(st.session_state.tickers):
     # 티커 선택 버튼
     if st.sidebar.button(f"{ticker}", key=f"sel_{ticker}"):
         st.session_state.selected = ticker
-    # 수정 모드일 때만 추가 버튼 노출
+    # 수정 모드일 때만 추가 버튼들 노출
     if st.session_state.edit_mode:
         html = f"""
         <div style="display: flex; gap: 5px; margin: 0.2em 0;">
@@ -169,17 +132,12 @@ if selected:
         prev_close = info.get("previousClose")
 
         st.title(f"📈 {selected} 분석 결과")
-        st.write(f"- 현재가: **{format_price(current_price)}**")
+        st.write(f"- 현재가: **{format_price(current_price)}** (전일 대비: {percent_change(current_price, prev_close)})")
         st.write(f"- 전일 종가: **{format_price(prev_close)}**")
-        st.write(f"📊 전일 대비 변화율: {percent_change(current_price, prev_close)}")
-        st.write(f"- 연중 최고가: **{format_price(high_52w)}**")
-        st.write(f"- 연중 최저가: **{format_price(low_52w)}**")
-        st.write(f"- 6개월 최저가: **{format_price(low_6mo)}**")
-        st.write(f"📈 6개월 최저가 대비 상승률: {percent_change(current_price, low_6mo)}")
-        st.write(f"- 사상 최고가 (10년): **{format_price(ath)}**")
-        st.write(f"📉 사상 최고가 대비 하락률: {percent_change(current_price, ath)}")
-        st.write(f"📉 연중 최고가 대비 하락률: {percent_change(current_price, high_52w)}")
-        st.write(f"📈 연중 최저가 대비 상승률: {percent_change(current_price, low_52w)}")
+        st.write(f"- 연중 최고가: **{format_price(high_52w)}** (대비 하락률: {percent_change(current_price, high_52w)})")
+        st.write(f"- 연중 최저가: **{format_price(low_52w)}** (대비 상승률: {percent_change(current_price, low_52w)})")
+        st.write(f"- 6개월 최저가: **{format_price(low_6mo)}** (대비 상승률: {percent_change(current_price, low_6mo)})")
+        st.write(f"- 사상 최고가 (10년): **{format_price(ath)}** (대비 하락률: {percent_change(current_price, ath)})")
 
         st.markdown("#### 📉 최고점 대비 하락 구간 (5% 단위)")
         drop_levels = [i/100 for i in range(0, 85, 5)]
