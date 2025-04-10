@@ -1,6 +1,7 @@
 streamlit
 yfinance
 pandas
-requests
-beautifulsoup4
 matplotlib
+gspread
+gspread_dataframe
+oauth2client
